@@ -5,6 +5,12 @@ import XCTest
 
 /// Jizai の打ち間違いの表の効き目と速さを測る(表は Jizai の JizaiCore/TypoTables と同じ作り)。
 final class JizaiTypoTests: XCTestCase {
+    static func out(_ line: String) {
+        let url = URL(fileURLWithPath: "/tmp/jizai-typo-report.txt")
+        let data = Data((line + "\n").utf8)
+        if let h = try? FileHandle(forWritingTo: url) { h.seekToEndOfFile(); h.write(data); try? h.close() } else { try? data.write(to: url) }
+    }
+
     static let kanaRows: [[[String]]] = [
         [["あ","い","う","え","お"], ["か","き","く","け","こ"], ["さ","し","す","せ","そ"]],
         [["た","ち","つ","て","と"], ["な","に","ぬ","ね","の"], ["は","ひ","ふ","へ","ほ"]],
@@ -129,11 +135,11 @@ final class JizaiTypoTests: XCTestCase {
         var broken: [String] = []
         for (i, s) in Self.correctFlick.enumerated() { let f = run(s, style: .direct).texts.first ?? ""; if f != baseF[i] { broken.append("\(s): \(baseF[i])→\(f)") } }
         for (i, s) in Self.correctRoman.enumerated() { let f = run(s, style: .roman2kana).texts.first ?? ""; if f != baseR[i] { broken.append("\(s): \(baseR[i])→\(f)") } }
-        print("=== margin \(Self.margin) dir \(dir) nb \(neighbor) row \(row) diag \(diag) max \(maxPenalty.map { "\($0)" } ?? "nil")")
-        print("  表なし: 5位以内 \(baseHit)/20  最大 \(String(format: "%.1f", baseMs))ms")
-        print("  表あり: 5位以内 \(hit)/20  1位 \(hit1)/20  最大 \(String(format: "%.1f", ms))ms")
-        print("  正しく打った語の1位が変わった: \(broken.isEmpty ? "なし" : broken.joined(separator: ", "))")
-        lines.forEach { print($0) }
+        Self.out("=== margin \(Self.margin) dir \(dir) nb \(neighbor) row \(row) diag \(diag) max \(maxPenalty.map { "\($0)" } ?? "nil")")
+        Self.out("  表なし: 5位以内 \(baseHit)/20  最大 \(String(format: "%.1f", baseMs))ms")
+        Self.out("  表あり: 5位以内 \(hit)/20  1位 \(hit1)/20  最大 \(String(format: "%.1f", ms))ms")
+        Self.out("  正しく打った語の1位が変わった: \(broken.isEmpty ? "なし" : broken.joined(separator: ", "))")
+        lines.forEach { Self.out($0) }
     }
 
     @MainActor func testReport() {
@@ -143,7 +149,7 @@ final class JizaiTypoTests: XCTestCase {
             let v = line.split(separator: " ").compactMap { Float($0) }
             guard v.count >= 5 else { continue }
             Self.margin = v.count >= 6 ? v[5] : 0
-            print("margin \(Self.margin)")
+            
             report(dir: v[0], neighbor: v[1], row: v[2], diag: v[3], maxPenalty: v[4] == 0 ? nil : v[4])
         }
     }
