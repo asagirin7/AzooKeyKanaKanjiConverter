@@ -2,7 +2,7 @@ import SwiftUtils
 
 struct TypoCorrectionGenerator: Sendable {
     init(inputs: [ComposingText.InputElement], range: ProcessRange, needTypoCorrection: Bool) {
-        self.maxPenalty = needTypoCorrection ? 3.5 * 3 : 0
+        self.maxPenalty = needTypoCorrection ? (TypoCorrectionTable.maxPenalty ?? 3.5 * 3) : 0
         self.inputs = inputs
         self.range = range
 
@@ -139,10 +139,11 @@ struct TypoCorrectionGenerator: Sendable {
 
         if (elements.allSatisfy {$0.inputStyle == .direct}) {
             let dictionary: [String: [TypoCandidate]] = frozen ? [:] : Self.directPossibleTypo
+            let extra: [String: [TypoCandidate]] = frozen ? [:] : TypoCorrectionTable.directCandidates
             if key.count > 1 {
-                return dictionary[key, default: []]
+                return dictionary[key, default: []] + extra[key, default: []]
             } else if key.count == 1 {
-                var result = dictionary[key, default: []]
+                var result = dictionary[key, default: []] + extra[key, default: []]
                 // そのまま
                 result.append(TypoCandidate(inputElements: key.map {ComposingText.InputElement(character: $0, inputStyle: .direct)}, weight: 0))
                 return result
@@ -150,10 +151,11 @@ struct TypoCorrectionGenerator: Sendable {
         }
         if (elements.allSatisfy {$0.inputStyle == .roman2kana}) {
             let dictionary: [String: [TypoCandidate]] = frozen ? [:] : Self.roman2KanaPossibleTypo
+            let extra: [String: [TypoCandidate]] = frozen ? [:] : TypoCorrectionTable.roman2KanaCandidates
             if key.count > 1 {
-                return dictionary[key, default: []]
+                return dictionary[key, default: []] + extra[key, default: []]
             } else if key.count == 1 {
-                var result = dictionary[key, default: []]
+                var result = dictionary[key, default: []] + extra[key, default: []]
                 // そのまま
                 result.append(
                     TypoCandidate(inputElements: key.map {ComposingText.InputElement(character: $0, inputStyle: .roman2kana)}, weight: 0)
@@ -237,6 +239,46 @@ struct TypoCorrectionGenerator: Sendable {
                 inputElements: $0.map {ComposingText.InputElement(character: $0, inputStyle: .roman2kana)},
                 weight: 3.5
             )
+        }
+    }
+}
+
+
+/// 誤り訂正の表を外から足す口(Jizai 用)。
+///
+/// キーは打った文字。ダイレクト入力ではカタカナ 1〜2 文字、ローマ字入力では英小文字 1〜2 文字。
+/// 値は「本当は打ちたかったかもしれない文字列」と罰点(大きいほど起こりにくい。既定の表は 3.5〜7.0)。
+/// 変換を始める前に、変換と同じスレッドから設定する。
+public enum TypoCorrectionTable {
+    public struct Entry: Sendable, Equatable {
+        public var value: String
+        public var penalty: PValue
+        public init(_ value: String, penalty: PValue) {
+            self.value = value
+            self.penalty = penalty
+        }
+    }
+
+    nonisolated(unsafe) public static var direct: [String: [Entry]] = [:] {
+        didSet { directCandidates = make(direct, style: .direct) }
+    }
+    nonisolated(unsafe) public static var roman2Kana: [String: [Entry]] = [:] {
+        didSet { roman2KanaCandidates = make(roman2Kana, style: .roman2kana) }
+    }
+    /// 1 回の変換で使ってよい罰点の合計。nil なら既定(3.5 × 3)。
+    nonisolated(unsafe) public static var maxPenalty: PValue? = nil
+
+    nonisolated(unsafe) static var directCandidates: [String: [TypoCorrectionGenerator.TypoCandidate]] = [:]
+    nonisolated(unsafe) static var roman2KanaCandidates: [String: [TypoCorrectionGenerator.TypoCandidate]] = [:]
+
+    private static func make(_ table: [String: [Entry]], style: InputStyle) -> [String: [TypoCorrectionGenerator.TypoCandidate]] {
+        table.mapValues { entries in
+            entries.map { e in
+                TypoCorrectionGenerator.TypoCandidate(
+                    inputElements: e.value.map { ComposingText.InputElement(character: $0, inputStyle: style) },
+                    weight: e.penalty
+                )
+            }
         }
     }
 }
