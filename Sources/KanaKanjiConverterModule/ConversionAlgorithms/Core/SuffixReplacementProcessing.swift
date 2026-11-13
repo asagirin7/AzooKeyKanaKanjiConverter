@@ -102,7 +102,10 @@ extension Kana2Kanji {
         // terminalNodesの各要素を結果ノードに接続する
         let result = LatticeNode.EOSNode
 
-        for (i, nodes) in terminalNodes.enumerated() {
+        // 入力の位置と表層の位置の両方を、先頭から順に見る(Lattice をそのまま回すと表層の位置を全部見た後に
+        // 入力の位置を見るため、入力の位置 0 から始まる語(打ち間違いを直した語など)が文頭として扱われず、
+        // 文頭のつながりの値が足されずに高い値のまま出ていた)
+        for (isHead, nodes) in terminalNodes.indexedNodes(indices: latticeIndices) {
             for node in nodes {
                 if node.prevs.isEmpty {
                     continue
@@ -113,7 +116,7 @@ extension Kana2Kanji {
                 }
                 // 生起確率を取得する。
                 let wValue = node.data.value()
-                if i == 0 {
+                if isHead {
                     // valuesを更新する
                     node.values = node.prevs.map {$0.totalValue + wValue + self.dicdataStore.getCCValue($0.data.rcid, node.data.lcid)}
                 } else {
