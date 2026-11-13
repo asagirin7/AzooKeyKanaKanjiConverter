@@ -70,4 +70,17 @@ final class JizaiRankLearn: XCTestCase {
         dump(conv, "あるがとう")
         dump(conv, "ありがとう")
     }
+
+    @MainActor func testKatakana() {
+        var conv = KanaKanjiConverter()
+        dump(conv, "とらめりあ")
+        let text = "トラメリア"
+        let data = DicdataElement(word: text, ruby: text, cid: CIDData.固有名詞.cid, mid: MIDData.一般.mid, value: -14)
+        conv.updateLearningData(Candidate(text: text, value: -14, composingCount: .inputCount(text.count), lastMid: MIDData.一般.mid, data: [data]))
+        dump(conv, "とらめりあ")
+        dump(conv, "とらめりあは")
+        conv.sendToDicdataStore(.closeKeyboard)
+        conv = KanaKanjiConverter()
+        dump(conv, "とらめりあ")
+    }
 }
