@@ -337,7 +337,9 @@ public final class DicdataStore {
                 continue
             }
             let charIDs = characters.map(self.character2charId(_:))
-            let keys: [String] = if useMemory {
+            // 覚えた語(学習)は、打ち間違いを直した読みでは引かない(覚えた語の高い値のまま、
+            // 打ったとおりの候補より前に出てしまうため)。直した読みでは辞書の値に罰点を引いた値で出る。
+            let keys: [String] = if useMemory && info.penalty.isZero {
                 [String(firstCharacter), "user", "memory"]
             } else {
                 [String(firstCharacter), "user"]
@@ -357,22 +359,15 @@ public final class DicdataStore {
                     availableMaxIndex = max(availableMaxIndex, result.availableMaxIndex)
                 }
             }
-            // 短期記憶についてはこの位置で処理する
-            let result = self.learningManager.movingTowardPrefixSearchOnTemporaryMemory(charIDs: consume charIDs)
-            updated = updated || !(result.dicdata.isEmpty)
-            availableMaxIndex = max(availableMaxIndex, result.availableMaxIndex)
-            for (depth, dicdata) in result.dicdata {
-                for data in dicdata {
-                    if info.penalty.isZero {
+            // 短期記憶についてはこの位置で処理する(打ち間違いを直した読みでは引かない)
+            if info.penalty.isZero {
+                let result = self.learningManager.movingTowardPrefixSearchOnTemporaryMemory(charIDs: consume charIDs)
+                updated = updated || !(result.dicdata.isEmpty)
+                availableMaxIndex = max(availableMaxIndex, result.availableMaxIndex)
+                for (depth, dicdata) in result.dicdata {
+                    for data in dicdata {
                         dynamicDicdata[depth, default: []].append(data)
                     }
-                    let ratio = Self.penaltyRatio[data.lcid]
-                    let pUnit: PValue = Self.getPenalty(data: data) / 2   // 負の値
-                    let adjust = pUnit * info.penalty * ratio
-                    if self.shouldBeRemoved(value: data.value() + adjust, wordCount: data.ruby.count) {
-                        continue
-                    }
-                    dynamicDicdata[depth, default: []].append(data.adjustedData(adjust))
                 }
             }
             if !self.dynamicUserDict.isEmpty {
