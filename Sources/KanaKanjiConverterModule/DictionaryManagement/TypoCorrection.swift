@@ -3,6 +3,7 @@ import SwiftUtils
 struct TypoCorrectionGenerator: Sendable {
     init(inputs: [ComposingText.InputElement], range: ProcessRange, needTypoCorrection: Bool) {
         self.maxPenalty = needTypoCorrection ? (TypoCorrectionTable.maxPenalty ?? 3.5 * 3) : 0
+        self.strictMaxPenalty = TypoCorrectionTable.maxPenalty != nil
         self.inputs = inputs
         self.range = range
 
@@ -34,6 +35,12 @@ struct TypoCorrectionGenerator: Sendable {
     }
 
     let maxPenalty: PValue
+    /// 罰点の合計が maxPenalty を超える直しは試さない(外から maxPenalty を渡したとき)。
+    /// 元の作りは「合計が maxPenalty に届くまで」次の直しを足すので、罰点 7 の直しの後にもう 1 か所(合計 14)直していた。
+    /// ローマ字では 1 打で数千通りの読みを辞書で引くことになり、長い読みで 1 打 0.5 秒以上かかっていた。
+    let strictMaxPenalty: Bool
+    /// 辞書で引くために作った読みの数(試験で、1 打ごとの数が跳ねないかを見る)
+    nonisolated(unsafe) static var generatedCount = 0
     let inputs: [ComposingText.InputElement]
     let range: ProcessRange
     let nodes: [[TypoCandidate]]
@@ -84,6 +91,7 @@ struct TypoCorrectionGenerator: Sendable {
             if self.range.rightIndexRange.contains(count + self.range.leftIndex - 1) {
                 if let convertTarget = ComposingText.getConvertTargetIfRightSideIsValid(lastElement: lastElement, of: inputs, to: count + self.range.leftIndex, convertTargetElements: convertTargetElements)?.map({$0.toKatakana()}) {
                     result = (convertTarget, (.input(count + self.range.leftIndex - 1), penalty))
+                    Self.generatedCount &+= 1
                 }
             }
             // エスケープ
@@ -112,6 +120,9 @@ struct TypoCorrectionGenerator: Sendable {
             } else {
                 stack.append(contentsOf: self.nodes[count].compactMap {
                     if count + $0.inputElements.count > self.nodes.endIndex {
+                        return nil
+                    }
+                    if self.strictMaxPenalty && penalty + $0.weight > maxPenalty {
                         return nil
                     }
                     var convertTargetElements = convertTargetElements
