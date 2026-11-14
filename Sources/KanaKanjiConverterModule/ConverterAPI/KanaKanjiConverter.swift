@@ -520,11 +520,28 @@ import EfficientNGram
         // その他のトップレベル変換（先頭に表示されうる変換候補）
         let toplevel_additional_candidate = self.getTopLevelAdditionalCandidate(inputData, options: options)
         // best8、foreign_candidates、zeroHintPrediction_candidates、toplevel_additional_candidateを混ぜて上位5件を取得する
-        let full_candidate = getUniqueCandidate(
+        var full_candidate = getUniqueCandidate(
             best8
                 .chained(foreign_candidates)
                 .chained(toplevel_additional_candidate)
         ).min(count: 5, sortedBy: {$0.value > $1.value})
+        // 打ち間違いを直した候補で文全体の候補が埋まったときも、打ったとおりの読みの文全体の候補を
+        // 最低 3 つ(あれば)残す。足す分は後ろに置く(並べ方は使う側に任せる)
+        do {
+            let exactRuby = inputData.convertTarget.toKatakana()
+            let isExact: (Candidate) -> Bool = { $0.data.reduce(into: "") { $0 += $1.ruby } == exactRuby }
+            var exactCount = full_candidate.count(where: isExact)
+            if exactCount < 3 {
+                var seen = full_candidate.mapSet { $0.text }
+                for candidate in whole_sentence_unique_candidates.sorted(by: { $0.value > $1.value }) where exactCount < 3 {
+                    if isExact(candidate) && !seen.contains(candidate.text) {
+                        full_candidate.append(candidate)
+                        seen.insert(candidate.text)
+                        exactCount += 1
+                    }
+                }
+            }
+        }
         // 重複のない変換候補を作成するための集合
         var seenCandidate: Set<String> = full_candidate.mapSet {$0.text}
         // 文節のみ変換するパターン（上位5件）

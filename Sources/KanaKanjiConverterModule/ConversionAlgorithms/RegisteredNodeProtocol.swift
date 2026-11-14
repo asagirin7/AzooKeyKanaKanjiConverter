@@ -15,6 +15,8 @@ protocol RegisteredNodeProtocol {
     var prev: (any RegisteredNodeProtocol)? {get}
     var totalValue: PValue {get}
     var range: Lattice.LatticeRange {get}
+    /// 始点からこのノードまでに、打ち間違いを直した読みの語を含むか
+    var hasTypoCorrection: Bool {get}
 }
 
 struct RegisteredNode: RegisteredNodeProtocol {
@@ -26,12 +28,15 @@ struct RegisteredNode: RegisteredNodeProtocol {
     let totalValue: PValue
     /// `composingText`の`input`で対応する範囲
     let range: Lattice.LatticeRange
+    /// 始点からこのノードまでに、打ち間違いを直した読みの語を含むか
+    let hasTypoCorrection: Bool
 
     init(data: DicdataElement, registered: RegisteredNode?, totalValue: PValue, range: Lattice.LatticeRange) {
         self.data = data
         self.prev = registered
         self.totalValue = totalValue
         self.range = range
+        self.hasTypoCorrection = data.metadata.contains(.isTypoCorrected) || (registered?.hasTypoCorrection ?? false)
     }
 
     /// 始点ノードを生成する関数

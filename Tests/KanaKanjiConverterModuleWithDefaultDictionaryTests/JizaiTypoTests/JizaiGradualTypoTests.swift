@@ -33,4 +33,22 @@ final class JizaiGradualTypoTests: XCTestCase {
         }
         XCTAssertTrue(texts("にとべるように", gradual: true).prefix(5).contains("に飛べるように"))
     }
+
+    /// 打ち間違いの直しの候補が多くても、打ったとおりの読みの文全体の候補が 3 つ残ること。
+    @MainActor func testExactSentencesKept() {
+        TypoCorrectionTable.direct = JizaiTypoTests.flickTable(dir: 7, neighbor: 8)
+        TypoCorrectionTable.maxPenalty = 8
+        for input in ["こくしてほしい", "にとべるように", "をこくしてほしい"] {
+            let converter = KanaKanjiConverter()
+            var c = ComposingText()
+            var r: [Candidate] = []
+            for ch in input {
+                c.insertAtCursorPosition(String(ch), inputStyle: .direct)
+                r = converter.requestCandidates(c, options: options()).mainResults
+            }
+            let typed = c.convertTarget.applyingTransform(.hiraganaToKatakana, reverse: false) ?? c.convertTarget
+            let exact = r.filter { $0.rubyCount == c.convertTarget.count && $0.data.map(\.ruby).joined() == typed && $0.text != c.convertTarget && $0.text != typed }
+            XCTAssertGreaterThanOrEqual(exact.count, 3, "\(input): \(exact.map(\.text))")
+        }
+    }
 }

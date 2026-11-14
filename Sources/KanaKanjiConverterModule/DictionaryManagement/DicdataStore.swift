@@ -386,7 +386,9 @@ public final class DicdataStore {
                         if self.shouldBeRemoved(value: data.value() + adjust, wordCount: Array(data.ruby).count) {
                             continue
                         }
-                        dynamicDicdata[depth, default: []].append(data.adjustedData(adjust))
+                        var corrected = data.adjustedData(adjust)
+                        corrected.metadata.insert(.isTypoCorrected)
+                        dynamicDicdata[depth, default: []].append(corrected)
                     }
                 }
             }
@@ -532,7 +534,9 @@ public final class DicdataStore {
                 if self.shouldBeRemoved(value: data.value() + adjust, wordCount: rubyArray.count) {
                     return nil
                 }
-                return data.adjustedData(adjust)
+                var corrected = data.adjustedData(adjust)
+                corrected.metadata.insert(.isTypoCorrected)
+                return corrected
             }
             dicdata.append(contentsOf: result)
         }

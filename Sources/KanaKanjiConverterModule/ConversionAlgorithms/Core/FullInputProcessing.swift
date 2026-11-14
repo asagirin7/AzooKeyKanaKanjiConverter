@@ -108,17 +108,53 @@ extension Kana2Kanji {
                 let newValue: PValue = ccValue + value
                 // 追加すべきindexを取得する
                 let lastindex: Int = (nextnode.prevs.lastIndex(where: {$0.totalValue >= newValue}) ?? -1) + 1
-                if lastindex == nBest {
-                    continue
-                }
                 let newnode: RegisteredNode = node.getRegisteredNode(index, value: newValue)
-                // カウントがオーバーしている場合は除去する
-                if nextnode.prevs.count >= nBest {
-                    nextnode.prevs.removeLast()
-                }
-                // removeしてからinsertした方が速い (insertはO(N)なので)
-                nextnode.prevs.insert(newnode, at: lastindex)
+                _ = Self.register(newnode, at: lastindex, into: &nextnode.prevs, nBest: nBest)
             }
         }
+    }
+
+    /// 打ち間違いを直した語を含まない(打ったとおりの読みの)経路を、各ノードで少なくともこの数だけ残す。
+    /// 直しの候補だけで N-Best が埋まると、打ったとおりの経路が途中で 1 つも残らなくなるため
+    /// (「こくしてほしい」で 濃くしてほしい が、「にとべるように」で に飛べるように が消えていた)。
+    static func exactReserve(nBest: Int) -> Int { max(1, nBest / 2) }
+
+    /// `prevs`(totalValue の大きい順)の `index` に `node` を入れ、数を保つ。
+    /// 上位 nBest 件に加えて、打ったとおりの経路は上位 exactReserve 件まで残す。入れなかったら false。
+    static func register(_ node: RegisteredNode, at index: Int, into prevs: inout [RegisteredNode], nBest: Int) -> Bool {
+        let reserve = exactReserve(nBest: nBest)
+        if index >= nBest {
+            // 上位 nBest 件に入らない。打ったとおりの経路で、前に打ったとおりの経路が reserve 件未満のときだけ入れる
+            if node.hasTypoCorrection {
+                return false
+            }
+            var exactBefore = 0
+            for i in 0 ..< index where !prevs[i].hasTypoCorrection {
+                exactBefore += 1
+                if exactBefore >= reserve {
+                    return false
+                }
+            }
+        }
+        prevs.insert(node, at: index)
+        // あふれたら、守られていない(上位 nBest 件の外で、打ったとおりの上位 reserve 件でもない)ものを後ろから 1 つ除く
+        guard prevs.count > nBest else {
+            return true
+        }
+        var exactCount = 0
+        var removable: Int? = nil
+        for i in prevs.indices {
+            let exact = !prevs[i].hasTypoCorrection
+            if exact {
+                exactCount += 1
+            }
+            if i >= nBest && !(exact && exactCount <= reserve) {
+                removable = i
+            }
+        }
+        if let removable {
+            prevs.remove(at: removable)
+        }
+        return true
     }
 }

@@ -103,4 +103,6 @@ public struct DicdataElementMetadata: OptionSet, Sendable, Hashable, Equatable {
     public static let isLearned = DicdataElementMetadata(rawValue: 1 << 0) // 1
     /// ユーザ辞書から得られた候補にはこのフラグを立てる
     public static let isFromUserDictionary = DicdataElementMetadata(rawValue: 1 << 1) // 2
+    /// 打ち間違いを直した読みで引いた候補にはこのフラグを立てる(打ったとおりの読みの候補と分けて数えるため)
+    public static let isTypoCorrected = DicdataElementMetadata(rawValue: 1 << 2) // 4
 }
